@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIA Map Builder — Polygon Room Mapper</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg:#0F1117;--surface:#1A1D2E;--surface2:#232639;--border:#2D3256;
+    --text:#E8EAFF;--text-soft:#8B91C4;--blue:#4F8EF7;--blue-d:#3A75E0;
+    --green:#22C55E;--red:#EF4444;--amber:#F59E0B;--purple:#8B5CF6;
+    --radius:10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
+button{cursor:pointer;font-family:inherit;border:none;outline:none;}
+input,select,textarea{font-family:inherit;}
+
+.app{display:grid;grid-template-rows:56px 1fr;grid-template-columns:280px 1fr 300px;height:100vh;}
+
+/* ── HEADER ── */
+header{
+    grid-column:1/-1;background:var(--surface);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;padding:0 20px;gap:12px;
+}
+.logo{background:var(--blue);color:#fff;width:34px;height:34px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;}
+header h1{font-size:15px;font-weight:700;}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+
+/* draw tools */
+.draw-tools{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.draw-tool{padding:6px 14px;background:var(--surface2);color:var(--text-soft);font-size:12px;font-weight:600;
+    border-right:1px solid var(--border);transition:.15s;}
+.draw-tool:last-child{border-right:none;}
+.draw-tool:hover{background:var(--surface);color:var(--text);}
+.draw-tool.active{background:var(--blue);color:#fff;}
+
+.btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;transition:.15s;display:flex;align-items:center;gap:5px;}
+.btn-primary{background:var(--blue);color:#fff;}.btn-primary:hover{background:var(--blue-d);}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}.btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
+
+/* status pill */
+.status-pill{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;flex-shrink:0;}
+.status-poly{background:rgba(139,92,246,.25);color:var(--purple);}
+.status-rect{background:rgba(79,142,247,.2);color:var(--blue);}
+.status-select{background:rgba(34,197,94,.2);color:var(--green);}
+
+/* ── LEFT SIDEBAR ── */
+.sidebar-left{background:var(--surface);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden;}
+.section{padding:14px;border-bottom:1px solid var(--border);}
+.section.scroll{flex:1;overflow-y:auto;}
+.section-label{font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--text-soft);margin-bottom:10px;text-transform:uppercase;}
+
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:16px;
+    text-align:center;cursor:pointer;transition:.15s;}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--blue);background:rgba(79,142,247,.05);}
+.upload-zone p{font-size:11px;color:var(--text-soft);margin-top:4px;}
+#fileInput{display:none;}
+
+.field{margin-bottom:8px;}
+.field label{display:block;font-size:11px;color:var(--text-soft);font-weight:500;margin-bottom:3px;}
+.field input,.field select,.field textarea{
+    width:100%;background:var(--surface2);border:1px solid var(--border);
+    border-radius:6px;padding:6px 9px;font-size:12px;color:var(--text);transition:border-color .15s;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--blue);}
+.field textarea{resize:vertical;min-height:48px;}
+
+.feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;}
+.feat-cb{display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;padding:3px 4px;border-radius:4px;}
+.feat-cb:hover{background:var(--surface2);}
+.feat-cb input{accent-color:var(--blue);}
+
+/* hint box */
+.hint-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    padding:10px;font-size:11px;color:var(--text-soft);line-height:1.6;}
+.hint-box b{color:var(--text);}
+.hint-box .key{display:inline-block;background:var(--surface);border:1px solid var(--border);
+    border-radius:4px;padding:1px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;}
+
+/* ── CANVAS ── */
+.canvas-area{position:relative;overflow:auto;
+    background:repeating-conic-gradient(var(--surface) 0% 25%,var(--surface2) 0% 50%) 0 0/20px 20px;
+    display:flex;align-items:flex-start;justify-content:flex-start;padding:20px;}
+
+#mapWrap{position:relative;display:inline-block;user-select:none;}
+#mapWrap img{display:block;max-width:none;pointer-events:none;image-rendering:crisp-edges;}
+#mapSvg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;}
+
+.empty-state{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;color:var(--text-soft);pointer-events:none;}
+.empty-state .icon{font-size:48px;opacity:.3;}
+
+/* SVG room styles */
+.r-shape{cursor:pointer;transition:opacity .12s;}
+.r-shape:hover{opacity:.75;}
+.r-shape.sel{stroke-width:3!important;filter:drop-shadow(0 0 6px rgba(255,255,255,.4));}
+
+/* cursor tip */
+.cursor-tip{position:fixed;background:var(--surface);border:1px solid var(--border);
+    border-radius:6px;padding:3px 9px;font-size:11px;font-family:'JetBrains Mono',monospace;
+    pointer-events:none;z-index:9000;display:none;color:var(--text-soft);}
+
+/* ── RIGHT SIDEBAR ── */
+.sidebar-right{background:var(--surface);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden;}
+.tabs{display:flex;border-bottom:1px solid var(--border);}
+.tab-btn{flex:1;padding:10px;font-size:12px;font-weight:600;background:transparent;
+    color:var(--text-soft);border-bottom:2px solid transparent;transition:.15s;}
+.tab-btn.active{color:var(--blue);border-color:var(--blue);}
+.tab-content{flex:1;overflow:hidden;display:none;flex-direction:column;}
+.tab-content.active{display:flex;}
+
+.code-box{flex:1;overflow:auto;padding:14px;font-family:'JetBrains Mono',monospace;
+    font-size:11px;line-height:1.6;color:#a5f3fc;background:var(--surface2);white-space:pre;}
+.code-actions{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);}
+
+.room-list{flex:1;overflow-y:auto;padding:10px;}
+.room-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    padding:9px 10px;margin-bottom:5px;cursor:pointer;transition:.15s;
+    display:flex;align-items:center;gap:8px;}
+.room-item:hover{border-color:var(--blue);}
+.room-item.active{border-color:var(--blue);background:rgba(79,142,247,.08);}
+.room-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.room-item-info{flex:1;min-width:0;}
+.room-item-id{font-size:10px;color:var(--text-soft);font-weight:600;}
+.room-item-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.room-item-del{color:var(--red);font-size:16px;flex-shrink:0;opacity:.4;line-height:1;}
+.room-item-del:hover{opacity:1;}
+
+.stats-bar{display:flex;gap:10px;padding:9px 14px;border-top:1px solid var(--border);
+    font-size:11px;color:var(--text-soft);flex-wrap:wrap;}
+.stat{display:flex;align-items:center;gap:4px;}
+.stat-dot{width:8px;height:8px;border-radius:2px;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header>
+    <div class="logo">VIA</div>
+    <h1>Map Builder</h1>
+    <span style="font-size:12px;color:var(--text-soft);">— polygon room mapper</span>
+
+    <div style="display:flex;gap:6px;margin-left:16px;" class="draw-tools">
+        <button class="draw-tool active" id="toolPoly" title="P">⬡ Polygon</button>
+        <button class="draw-tool" id="toolRect" title="R">□ Rectangle</button>
+        <button class="draw-tool" id="toolSelect" title="S">↖ Select</button>
+    </div>
+
+    <span class="status-pill status-poly" id="statusPill">⬡ Polygon Mode · click to add points · double-click to close</span>
+
+    <div class="header-actions">
+        <button class="btn btn-ghost" id="undoBtn" title="Ctrl+Z">↩ Undo</button>
+        <button class="btn btn-ghost" id="clearAllBtn">🗑️ Clear</button>
+        <button class="btn btn-primary" id="generateBtn">⚙️ Generate Code</button>
+    </div>
+</header>
+
+<!-- LEFT SIDEBAR -->
+<aside class="sidebar-left">
+    <div class="section">
+        <div class="section-label">Floor Plan Image</div>
+        <div class="upload-zone" id="uploadZone">
+            <div style="font-size:26px;">🗺️</div>
+            <div style="font-weight:600;font-size:13px;margin-top:4px;">Upload Floor Plan</div>
+            <p>Click or drag & drop</p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <div class="field" style="flex:1;margin:0;">
+                <label>Floor</label>
+                <select id="floorNum">
+                    <option>1</option><option>2</option><option>3</option><option>4</option>
+                    <option>5</option><option>6</option><option>7</option><option>8</option>
+                </select>
+            </div>
+            <div class="field" style="flex:1;margin:0;">
+                <label>Hub</label>
+                <select id="hubSelect">
+                    <option value="A">Hub A</option><option value="B">Hub B</option>
+                    <option value="CL">C-Left</option>
+                    <option value="CBL">C-BotL</option><option value="CBR">C-BotR</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-label">Keyboard Shortcuts</div>
+        <div class="hint-box">
+            <b>Polygon mode:</b><br>
+            <span class="key">Click</span> add point &nbsp;
+            <span class="key">Dbl-click</span> close shape<br>
+            <span class="key">Esc</span> cancel &nbsp;
+            <span class="key">Enter</span> close shape<br><br>
+            <b>Tools:</b> <span class="key">P</span> polygon &nbsp;
+            <span class="key">R</span> rect &nbsp;
+            <span class="key">S</span> select<br>
+            <span class="key">Del</span> delete selected &nbsp;
+            <span class="key">Ctrl+Z</span> undo<br>
+            <span class="key">G</span> generate code
+        </div>
+    </div>
+
+    <div class="section scroll">
+        <div class="section-label">Room Properties</div>
+        <div class="field"><label>Room ID</label><input type="text" id="propId" value="GR.A101"></div>
+        <div class="field"><label>Room Name</label><input type="text" id="propName" value="Group Room A1"></div>
+        <div class="field">
+            <label>Type</label>
+            <select id="propType">
+                <option value="group">Group Room</option>
+                <option value="classroom">Classroom</option>
+                <option value="facility">Facility</option>
+                <option value="event">Event Space</option>
+            </select>
+        </div>
+        <div class="field"><label>Info / Description</label><textarea id="propInfo" placeholder="Shown on hover…"></textarea></div>
+        <div class="field">
+            <label>Features</label>
+            <div class="feature-grid">
+                <label class="feat-cb"><input type="checkbox" value="tv" class="feat-check"> 📺 TV</label>
+                <label class="feat-cb"><input type="checkbox" value="whiteboard" class="feat-check"> 🖊️ Whiteboard</label>
+                <label class="feat-cb"><input type="checkbox" value="projector" class="feat-check"> 📽️ Projector</label>
+                <label class="feat-cb"><input type="checkbox" value="smartboard" class="feat-check"> 🖥️ Smartboard</label>
+                <label class="feat-cb"><input type="checkbox" value="wifi" class="feat-check"> 📶 WiFi</label>
+                <label class="feat-cb"><input type="checkbox" value="coffee" class="feat-check"> ☕ Coffee</label>
+                <label class="feat-cb"><input type="checkbox" value="wheelchair" class="feat-check"> ♿ Access</label>
+                <label class="feat-cb"><input type="checkbox" value="silent" class="feat-check"> 🔇 Silent</label>
+                <label class="feat-cb"><input type="checkbox" value="computers" class="feat-check"> 💻 PCs</label>
+                <label class="feat-cb"><input type="checkbox" value="3d-printer" class="feat-check"> 🖨️ 3D Print</label>
+            </div>
+        </div>
+        <div class="field"><label>Capacity (seats)</label><input type="number" id="propCapacity" min="1" placeholder="e.g. 6"></div>
+        <div class="field">
+            <label>Special Behaviour</label>
+            <select id="propSpecial">
+                <option value="">None</option>
+                <option value="canteen">Canteen Menu</option>
+                <option value="cafe">Café Menu</option>
+                <option value="makerspace">MakerSpace</option>
+                <option value="events">Events Pillar</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>Quick Find</label>
+            <select id="propQuick">
+                <option value="">None</option>
+                <option value="coffee">☕ Coffee</option>
+                <option value="bathroom">🚻 Restroom</option>
+                <option value="trash">🗑️ Recycling</option>
+                <option value="exit">🚪 Exit</option>
+                <option value="printer">🖨️ Printer</option>
+            </select>
+        </div>
+        <div class="field"><label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="propReservable"> Reservable</label></div>
+    </div>
+</aside>
+
+<!-- CANVAS -->
+<main class="canvas-area" id="canvasArea">
+    <div id="mapWrap">
+        <div class="empty-state" id="emptyState">
+            <div class="icon">🗺️</div>
+            <p>Upload a floor plan image to start mapping</p>
+        </div>
+        <svg id="mapSvg"></svg>
+    </div>
+</main>
+
+<!-- RIGHT SIDEBAR -->
+<aside class="sidebar-right">
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="rooms">Rooms (<span id="roomCount">0</span>)</button>
+        <button class="tab-btn" data-tab="code">Code Output</button>
+    </div>
+    <div class="tab-content active" id="tab-rooms">
+        <div class="room-list" id="roomList">
+            <div style="text-align:center;color:var(--text-soft);font-size:12px;padding:20px;">
+                No rooms yet. Use Polygon or Rectangle tool to draw on the image.
+            </div>
+        </div>
+        <div class="stats-bar">
+            <span class="stat"><span class="stat-dot" style="background:var(--green)"></span><span id="s-gr">0</span> group</span>
+            <span class="stat"><span class="stat-dot" style="background:var(--blue)"></span><span id="s-cl">0</span> class</span>
+            <span class="stat"><span class="stat-dot" style="background:var(--amber)"></span><span id="s-fa">0</span> facility</span>
+            <span class="stat"><span class="stat-dot" style="background:var(--purple)"></span><span id="s-ev">0</span> event</span>
+        </div>
+    </div>
+    <div class="tab-content" id="tab-code">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-soft);">
+            Paste into <code style="color:var(--blue);">FLOOR_DATA[<span id="codeFlLbl">1</span>].rooms</code> in <code style="color:var(--blue);">data.js</code>
+        </div>
+        <div class="code-box" id="codeBox">// Click "Generate Code" to produce output</div>
+        <div class="code-actions">
+            <button class="btn btn-primary" style="flex:1;" id="copyBtn">📋 Copy</button>
+            <button class="btn btn-ghost" id="downloadBtn">⬇️ .js</button>
+        </div>
+    </div>
+</aside>
+
+</div>
+<div class="cursor-tip" id="cursorTip"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════════
+const TYPE_COLOR = {
+    group:    {fill:'rgba(34,197,94,.4)',   stroke:'#22C55E'},
+    classroom:{fill:'rgba(79,142,247,.4)',  stroke:'#4F8EF7'},
+    facility: {fill:'rgba(245,158,11,.4)',  stroke:'#F59E0B'},
+    event:    {fill:'rgba(139,92,246,.4)',  stroke:'#8B5CF6'},
+};
+
+let rooms      = [];
+let tool       = 'poly';   // 'poly' | 'rect' | 'select'
+let selected   = null;
+let imgLoaded  = false;
+
+// Polygon-in-progress
+let polyPts    = [];       // [{x,y}] accumulated clicks
+let previewPt  = null;     // current mouse position (rubber-band)
+
+// Rect-in-progress
+let rectStart  = null;
+let rectDragging = false;
+
+// ═══════════════════════════════════════════════════════════════
+//  DOM
+// ═══════════════════════════════════════════════════════════════
+const mapWrap    = document.getElementById('mapWrap');
+const mapSvg     = document.getElementById('mapSvg');
+const emptyState = document.getElementById('emptyState');
+const roomList   = document.getElementById('roomList');
+const codeBox    = document.getElementById('codeBox');
+const roomCount  = document.getElementById('roomCount');
+const cursorTip  = document.getElementById('cursorTip');
+const statusPill = document.getElementById('statusPill');
+
+// SVG namespace helper
+const NS = 'http://www.w3.org/2000/svg';
+function se(tag,attrs={}){
+    const e=document.createElementNS(NS,tag);
+    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    return e;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  IMAGE UPLOAD
+// ═══════════════════════════════════════════════════════════════
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag'); loadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+
+function loadFile(file) {
+    if (!file?.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+        mapWrap.querySelectorAll('img').forEach(i=>i.remove());
+        const el = document.createElement('img');
+        el.src = url;
+        el.style.cssText = 'display:block;max-width:none;';
+        mapWrap.insertBefore(el, mapSvg);
+        mapSvg.setAttribute('viewBox', `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+        mapSvg.style.width  = el.offsetWidth  + 'px';
+        mapSvg.style.height = el.offsetHeight + 'px';
+        imgLoaded = true;
+        emptyState.style.display = 'none';
+        uploadZone.innerHTML = `<div style="font-size:12px;color:var(--green);">✓ ${file.name}</div>`;
+
+        // Sync SVG size when window resizes
+        new ResizeObserver(()=>{
+            mapSvg.style.width  = el.offsetWidth  + 'px';
+            mapSvg.style.height = el.offsetHeight + 'px';
+        }).observe(el);
+    };
+    img.src = url;
+}
+
+// Convert screen coords → SVG local coords
+function svgPt(e) {
+    const pt = mapSvg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    return pt.matrixTransform(mapSvg.getScreenCTM().inverse());
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOOL SWITCHING
+// ═══════════════════════════════════════════════════════════════
+const TOOLS = {
+    poly:   { btn:'toolPoly',   pill:'⬡ Polygon · click to add points · double-click to close', cls:'status-poly' },
+    rect:   { btn:'toolRect',   pill:'□ Rectangle · click and drag',                             cls:'status-rect'  },
+    select: { btn:'toolSelect', pill:'↖ Select · click a shape to select it',                    cls:'status-select'},
+};
+
+function setTool(t) {
+    cancelPoly();
+    tool = t;
+    document.querySelectorAll('.draw-tool').forEach(b => b.classList.remove('active'));
+    document.getElementById(TOOLS[t].btn).classList.add('active');
+    statusPill.textContent = TOOLS[t].pill;
+    statusPill.className = `status-pill ${TOOLS[t].cls}`;
+    mapWrap.style.cursor = t === 'select' ? 'default' : 'crosshair';
+    if (t !== 'select') selectRoom(null);
+}
+
+document.getElementById('toolPoly').addEventListener('click', () => setTool('poly'));
+document.getElementById('toolRect').addEventListener('click', () => setTool('rect'));
+document.getElementById('toolSelect').addEventListener('click', () => setTool('select'));
+
+// ═══════════════════════════════════════════════════════════════
+//  POLYGON DRAWING
+// ═══════════════════════════════════════════════════════════════
+function cancelPoly() {
+    polyPts = [];
+    previewPt = null;
+    refreshPreview();
+}
+
+function closePoly() {
+    if (polyPts.length < 3) { cancelPoly(); return; }
+    const room = buildRoomFromPoly(polyPts);
+    commitRoom(room);
+    cancelPoly();
+}
+
+function refreshPreview() {
+    // Remove old preview elements
+    mapSvg.querySelectorAll('.preview').forEach(e => e.remove());
+    if (polyPts.length === 0) return;
+
+    const allPts = previewPt ? [...polyPts, previewPt] : polyPts;
+    const pts = allPts.map(p=>`${p.x},${p.y}`).join(' ');
+
+    if (allPts.length >= 2) {
+        // Polygon fill preview
+        if (allPts.length >= 3) {
+            const poly = se('polygon', {
+                class:'preview', points:pts,
+                fill:'rgba(139,92,246,.18)', stroke:'none', 'pointer-events':'none'
+            });
+            mapSvg.appendChild(poly);
+        }
+        // Polyline (open path)
+        const line = se('polyline', {
+            class:'preview', points:pts,
+            fill:'none', stroke:'#8B5CF6', 'stroke-width':'2',
+            'stroke-dasharray':'6 4', 'pointer-events':'none'
+        });
+        mapSvg.appendChild(line);
+    }
+
+    // Dots for each clicked point
+    polyPts.forEach((p, i) => {
+        const dot = se('circle', {
+            class:'preview', cx:p.x, cy:p.y, r:'5',
+            fill: i===0 ? '#22C55E' : '#8B5CF6',
+            stroke:'white', 'stroke-width':'1.5', 'pointer-events':'none'
+        });
+        mapSvg.appendChild(dot);
+
+        // Label first point "close here"
+        if (i===0 && polyPts.length>=3) {
+            const lbl = se('text', {
+                class:'preview', x:p.x+8, y:p.y-6,
+                fill:'#22C55E', 'font-size':'10', 'font-family':'Inter,sans-serif',
+                'font-weight':'700', 'pointer-events':'none'
+            });
+            lbl.textContent = 'close here';
+            mapSvg.appendChild(lbl);
+        }
+    });
+
+    // Point count
+    if (polyPts.length > 0) {
+        const last = polyPts[polyPts.length-1];
+        const cnt = se('text', {
+            class:'preview', x:last.x+8, y:last.y+16,
+            fill:'#a5f3fc', 'font-size':'10', 'font-family':'JetBrains Mono,monospace',
+            'pointer-events':'none'
+        });
+        cnt.textContent = `${polyPts.length} pts`;
+        mapSvg.appendChild(cnt);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SVG MOUSE EVENTS
+// ═══════════════════════════════════════════════════════════════
+mapSvg.addEventListener('mousemove', e => {
+    if (!imgLoaded) return;
+    const p = svgPt(e);
+
+    // Cursor tip
+    cursorTip.style.display = 'block';
+    cursorTip.style.left = (e.clientX+16)+'px';
+    cursorTip.style.top  = (e.clientY+16)+'px';
+    cursorTip.textContent = `${Math.round(p.x)}, ${Math.round(p.y)}`;
+
+    if (tool==='poly') {
+        previewPt = {x:Math.round(p.x), y:Math.round(p.y)};
+        refreshPreview();
+    } else if (tool==='rect' && rectDragging) {
+        drawRectPreview(rectStart, {x:Math.round(p.x),y:Math.round(p.y)});
+    }
+});
+
+mapSvg.addEventListener('mouseleave', () => { cursorTip.style.display='none'; });
+
+// Click — polygon point or shape selection
+mapSvg.addEventListener('click', e => {
+    if (!imgLoaded) return;
+    e.stopPropagation();
+    if (tool !== 'poly') return;
+
+    const p = {x: Math.round(svgPt(e).x), y: Math.round(svgPt(e).y)};
+
+    // Click close to first point → close polygon
+    if (polyPts.length >= 3) {
+        const d = Math.hypot(p.x-polyPts[0].x, p.y-polyPts[0].y);
+        if (d < 12) { closePoly(); return; }
+    }
+
+    polyPts.push(p);
+    refreshPreview();
+});
+
+// Double-click → close polygon
+mapSvg.addEventListener('dblclick', e => {
+    if (!imgLoaded || tool !== 'poly') return;
+    e.preventDefault(); e.stopPropagation();
+    closePoly();
+});
+
+// Rect drag
+mapSvg.addEventListener('mousedown', e => {
+    if (!imgLoaded || tool !== 'rect' || e.button !== 0) return;
+    rectStart = {x:Math.round(svgPt(e).x), y:Math.round(svgPt(e).y)};
+    rectDragging = true;
+});
+document.addEventListener('mouseup', e => {
+    if (!rectDragging) return;
+    rectDragging = false;
+    mapSvg.querySelectorAll('.rect-preview').forEach(el=>el.remove());
+    if (!rectStart) return;
+    const p = {x:Math.round(svgPt(e).x), y:Math.round(svgPt(e).y)};
+    const w = Math.abs(p.x-rectStart.x), h = Math.abs(p.y-rectStart.y);
+    if (w<8||h<8) return;
+    const x = Math.min(rectStart.x,p.x), y = Math.min(rectStart.y,p.y);
+    // Convert rect to polygon points
+    const pts = [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+    commitRoom(buildRoomFromPoly(pts));
+    rectStart = null;
+});
+
+function drawRectPreview(a, b) {
+    mapSvg.querySelectorAll('.rect-preview').forEach(el=>el.remove());
+    const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y);
+    const w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
+    const r = se('rect',{
+        class:'rect-preview',x,y,width:w,height:h,
+        fill:'rgba(79,142,247,.18)',stroke:'#4F8EF7','stroke-width':'2',
+        'stroke-dasharray':'6 4','pointer-events':'none',rx:'2'
+    });
+    mapSvg.appendChild(r);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BUILD ROOM FROM POLYGON
+// ═══════════════════════════════════════════════════════════════
+function buildRoomFromPoly(pts) {
+    const features = [...document.querySelectorAll('.feat-check:checked')].map(c=>c.value);
+    const cap = document.getElementById('propCapacity').value;
+    if (cap) features.push('capacity-'+cap);
+    const quick   = document.getElementById('propQuick').value;
+    const special = document.getElementById('propSpecial').value;
+
+    return {
+        id:         document.getElementById('propId').value.trim()   || 'ROOM.'+Date.now(),
+        name:       document.getElementById('propName').value.trim() || 'Unnamed Room',
+        type:       document.getElementById('propType').value,
+        hub:        document.getElementById('hubSelect').value,
+        shape:      'poly',
+        points:     pts.map(p=>({x:p.x,y:p.y})),
+        info:       document.getElementById('propInfo').value.trim(),
+        features,
+        quickTarget: quick ? [quick] : undefined,
+        special:     special || undefined,
+        reservable:  document.getElementById('propReservable').checked || undefined,
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COMMIT ROOM
+// ═══════════════════════════════════════════════════════════════
+function commitRoom(room) {
+    rooms.push(room);
+    autoIncrementId();
+    renderAllRooms();
+    renderRoomList();
+    updateStats();
+    selectRoom(room.id);
+}
+
+function autoIncrementId() {
+    const el = document.getElementById('propId');
+    const m  = el.value.match(/^(.*?)(\d+)$/);
+    if (m) el.value = m[1] + String(+m[2]+1).padStart(m[2].length,'0');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RENDER ALL ROOMS (SVG)
+// ═══════════════════════════════════════════════════════════════
+function renderAllRooms() {
+    // Remove old room shapes only (keep preview elements)
+    mapSvg.querySelectorAll('.r-shape,.r-label').forEach(e=>e.remove());
+
+    rooms.forEach(room => {
+        const c = TYPE_COLOR[room.type] || TYPE_COLOR.group;
+        const isSel = selected === room.id;
+
+        const pts = room.points.map(p=>`${p.x},${p.y}`).join(' ');
+        const shape = se('polygon',{
+            class: 'r-shape' + (isSel?' sel':''),
+            points: pts,
+            fill: c.fill, stroke: c.stroke,
+            'stroke-width': isSel ? '3' : '1.5',
+            'data-id': room.id,
+        });
+
+        // Centroid for label
+        const cx = room.points.reduce((s,p)=>s+p.x,0)/room.points.length;
+        const cy = room.points.reduce((s,p)=>s+p.y,0)/room.points.length;
+
+        const lbl = se('text',{
+            class:'r-label',x:cx,y:cy+4,
+            'text-anchor':'middle',fill:'rgba(255,255,255,.85)',
+            'font-size':'11','font-family':'Inter,sans-serif','font-weight':'700',
+            'pointer-events':'none',
+        });
+        lbl.textContent = room.name.length>14 ? room.id : room.name;
+
+        shape.addEventListener('click', e => {
+            e.stopPropagation();
+            if (tool==='select') selectRoom(room.id);
+        });
+
+        mapSvg.appendChild(shape);
+        mapSvg.appendChild(lbl);
+    });
+    roomCount.textContent = rooms.length;
+    document.getElementById('codeFlLbl').textContent = document.getElementById('floorNum').value;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SELECTION
+// ═══════════════════════════════════════════════════════════════
+function selectRoom(id) {
+    selected = id;
+    renderAllRooms();
+    document.querySelectorAll('.room-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+
+    if (!id) return;
+    const r = rooms.find(r=>r.id===id);
+    if (!r) return;
+    document.getElementById('propId').value      = r.id;
+    document.getElementById('propName').value    = r.name;
+    document.getElementById('propType').value    = r.type;
+    document.getElementById('propInfo').value    = r.info||'';
+    document.getElementById('propSpecial').value = r.special||'';
+    document.getElementById('propReservable').checked = !!r.reservable;
+    document.getElementById('hubSelect').value   = r.hub;
+    const cap = (r.features||[]).find(f=>f.startsWith('capacity-'));
+    document.getElementById('propCapacity').value = cap?cap.replace('capacity-',''):'';
+    document.querySelectorAll('.feat-check').forEach(cb=>{cb.checked=(r.features||[]).includes(cb.value);});
+    document.getElementById('propQuick').value = (r.quickTarget||[])[0]||'';
+}
+
+// Click empty SVG to deselect
+mapSvg.addEventListener('click', e => {
+    if (e.target===mapSvg || e.target.tagName==='image') selectRoom(null);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  DELETE
+// ═══════════════════════════════════════════════════════════════
+function deleteRoom(id) {
+    rooms = rooms.filter(r=>r.id!==id);
+    if (selected===id) selected=null;
+    renderAllRooms();
+    renderRoomList();
+    updateStats();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ROOM LIST
+// ═══════════════════════════════════════════════════════════════
+function renderRoomList() {
+    if (!rooms.length) {
+        roomList.innerHTML='<div style="text-align:center;color:var(--text-soft);font-size:12px;padding:20px;">No rooms yet.</div>';
+        return;
+    }
+    roomList.innerHTML = rooms.map(r=>{
+        const c = TYPE_COLOR[r.type]?.stroke||'#888';
+        return `<div class="room-item${selected===r.id?' active':''}" data-id="${r.id}" onclick="selectRoom('${r.id}');setTool('select');">
+            <div class="room-dot" style="background:${c}"></div>
+            <div class="room-item-info">
+                <div class="room-item-id">${r.id} · Hub ${r.hub} · ${r.points.length} pts</div>
+                <div class="room-item-name">${r.name}</div>
+            </div>
+            <span class="room-item-del" onclick="event.stopPropagation();deleteRoom('${r.id}')">×</span>
+        </div>`;
+    }).join('');
+}
+
+function updateStats() {
+    const c={group:0,classroom:0,facility:0,event:0};
+    rooms.forEach(r=>{if(c[r.type]!==undefined)c[r.type]++;});
+    document.getElementById('s-gr').textContent=c.group;
+    document.getElementById('s-cl').textContent=c.classroom;
+    document.getElementById('s-fa').textContent=c.facility;
+    document.getElementById('s-ev').textContent=c.event;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LIVE FORM SYNC
+// ═══════════════════════════════════════════════════════════════
+function syncSelected() {
+    if (!selected) return;
+    const r = rooms.find(r=>r.id===selected);
+    if (!r) return;
+    const feats=[...document.querySelectorAll('.feat-check:checked')].map(c=>c.value);
+    const cap=document.getElementById('propCapacity').value;
+    if(cap) feats.push('capacity-'+cap);
+    const newId=document.getElementById('propId').value.trim();
+    r.id=newId||r.id; selected=r.id;
+    r.name=document.getElementById('propName').value.trim()||r.name;
+    r.type=document.getElementById('propType').value;
+    r.hub=document.getElementById('hubSelect').value;
+    r.info=document.getElementById('propInfo').value.trim();
+    r.features=feats;
+    const qt=document.getElementById('propQuick').value;
+    r.quickTarget=qt?[qt]:undefined;
+    r.special=document.getElementById('propSpecial').value||undefined;
+    r.reservable=document.getElementById('propReservable').checked||undefined;
+    renderAllRooms(); renderRoomList(); updateStats();
+}
+['propId','propName','propType','propInfo','propCapacity','propSpecial','propQuick','hubSelect','propReservable',
+ ...document.querySelectorAll('.feat-check')].forEach(v=>{
+    const el=typeof v==='string'?document.getElementById(v):v;
+    if(el){el.addEventListener('input',syncSelected);el.addEventListener('change',syncSelected);}
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  CODE GENERATION
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('generateBtn').addEventListener('click', generateCode);
+
+function generateCode() {
+    if (!rooms.length) { codeBox.textContent='// No rooms yet!'; return; }
+    const fl = document.getElementById('floorNum').value;
+    const lines = rooms.map(r => {
+        const ptStr = r.points.map(p=>`{x:${p.x},y:${p.y}}`).join(', ');
+        const extras=[];
+        if(r.info)         extras.push(`      info: ${JSON.stringify(r.info)}`);
+        if(r.features?.length) extras.push(`      features: ${JSON.stringify(r.features)}`);
+        if(r.quickTarget?.length) extras.push(`      quickTarget: ${JSON.stringify(r.quickTarget)}`);
+        if(r.special)      extras.push(`      special: '${r.special}'`);
+        if(r.reservable)   extras.push(`      reservable: true`);
+        const extra=extras.length?',\n'+extras.join(',\n'):'';
+        return `    { id:'${r.id}', name:'${r.name}', type:'${r.type}', hub:'${r.hub}',\n      shape:'poly', points:[${ptStr}]${extra} }`;
+    });
+    const out=`// Floor ${fl} — paste into FLOOR_DATA[${fl}].rooms in data.js\n// Generated ${new Date().toLocaleString()}\n\n[\n${lines.join(',\n\n')}\n]`;
+    codeBox.textContent=out;
+    switchTab('code');
+}
+
+document.getElementById('copyBtn').addEventListener('click',()=>{
+    navigator.clipboard.writeText(codeBox.textContent).then(()=>toast('📋 Copied!'));
+});
+document.getElementById('downloadBtn').addEventListener('click',()=>{
+    const fl=document.getElementById('floorNum').value;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([codeBox.textContent],{type:'text/javascript'}));
+    a.download=`floor${fl}_rooms.js`; a.click();
+});
+document.getElementById('clearAllBtn').addEventListener('click',()=>{
+    if(!rooms.length||confirm('Clear all rooms?')){
+        rooms=[];selected=null;cancelPoly();
+        renderAllRooms();renderRoomList();updateStats();
+        codeBox.textContent='// Click "Generate Code" to produce output';
+    }
+});
+
+// Undo
+document.getElementById('undoBtn').addEventListener('click',()=>{
+    if(polyPts.length>0){polyPts.pop();refreshPreview();return;}
+    if(rooms.length){
+        const r=rooms.pop();
+        if(selected===r.id)selected=null;
+        renderAllRooms();renderRoomList();updateStats();
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════════
+function switchTab(name){
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.toggle('active',t.id==='tab-'+name));
+}
+document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+
+// ═══════════════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════════════
+function toast(msg){
+    const t=document.createElement('div');
+    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:8px 20px;border-radius:20px;z-index:9999;font-size:13px;font-weight:600;';
+    t.textContent=msg; document.body.appendChild(t);
+    setTimeout(()=>t.remove(),1800);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  KEYBOARD
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+    if(document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA') return;
+    if(e.key==='Escape')  cancelPoly();
+    if(e.key==='Enter')   closePoly();
+    if(e.key==='Delete'&&selected) deleteRoom(selected);
+    if(e.key==='p'||e.key==='P') setTool('poly');
+    if(e.key==='r'||e.key==='R') setTool('rect');
+    if(e.key==='s'||e.key==='S') setTool('select');
+    if(e.key==='g'||e.key==='G') generateCode();
+    if(e.ctrlKey&&e.key==='z'){ e.preventDefault(); document.getElementById('undoBtn').click(); }
+});
+</script>
+</body>
+</html>

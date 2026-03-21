@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VIA Campus Map — Interactive Guide</title>
+    <meta name="description" content="Interactive floor map for VIA University College Horsens — find rooms, check availability, order food, and get directions.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============================================================
+     WELCOME / SPLASH SCREEN
+============================================================ -->
+<div class="welcome-screen" id="welcomeScreen">
+    <div class="welcome-content">
+        <div class="welcome-branding">
+            <img src="viacompass_logo.png" alt="VIACompass Logo" class="welcome-logo">
+            <h1>VIACompass</h1>
+        </div>
+        <p class="welcome-subtitle">Your interactive map for the VIA University campus. Find rooms, order food &amp; navigate with ease.</p>
+        
+        <div class="welcome-features">
+            <button id="featMap" class="feat-card primary">
+                <span class="feat-icon">🗺️</span>
+                <span class="feat-text">Enter Campus Map</span>
+            </button>
+            <button id="featCanteen" class="feat-card">
+                <span class="feat-icon">🍽️</span>
+                <span class="feat-text">Today's Canteen Menu</span>
+            </button>
+            <button id="featCafe" class="feat-card">
+                <span class="feat-icon">☕</span>
+                <span class="feat-text">Cafeteria Pre-order</span>
+            </button>
+            <button id="featMaker" class="feat-card">
+                <span class="feat-icon">🖨️</span>
+                <span class="feat-text">MakerSpace 3D Printers</span>
+            </button>
+        </div>
+    </div>
+    <img src="image.png" alt="VIA Campus" class="welcome-bg">
+</div>
+
+<!-- ============================================================
+     MAIN LAYOUT (Fullscreen Map)
+============================================================ -->
+<div class="app-layout">
+
+    <!-- CENTER: MAP CANVAS -->
+    <main class="map-area" id="mapArea">
+        
+        <!-- APP BRANDING ON MAP -->
+        <div class="map-branding" id="mapBranding">
+            <img src="viacompass_logo.png" alt="VIACompass">
+            <span style="font-weight:900;letter-spacing:-0.3px;">VIACompass</span>
+        </div>
+
+        <!-- FLOATING FLOOR SELECTOR -->
+        <div class="floating-floor-nav" id="floorList">
+            <button class="floor-btn" data-floor="0">0F</button>
+            <button class="floor-btn" data-floor="1">1F</button>
+            <button class="floor-btn" data-floor="2">2F</button>
+            <button class="floor-btn" data-floor="3">3F</button>
+            <button class="floor-btn" data-floor="4">4F</button>
+            <button class="floor-btn" data-floor="5">5F</button>
+        </div>
+
+        <!-- FLOATING ACTION BAR -->
+        <div class="fab-bar">
+            <button class="fab-btn quick-btn" data-action="group" title="Group Rooms">👥</button>
+            <button class="fab-btn quick-btn" data-action="classrooms" title="Classrooms">🎓</button>
+            <button class="fab-btn quick-btn" data-action="creative" title="Creative Spaces">🎨</button>
+            <button class="fab-btn quick-btn" data-action="directions" id="fabDirToggle" title="Directions">🧭</button>
+        </div>
+
+        <!-- FLOATING DIRECTIONS BOX -->
+        <div class="floating-dir-box hidden" id="floatDirBox">
+            <h3>Directions</h3>
+            <div class="dir-form">
+                <input type="text" id="dirTo" placeholder="Where to? (e.g. C502)" autocomplete="off" />
+                <button class="dir-go-btn" id="dirGoBtn">Go</button>
+            </div>
+            <div class="dir-result" id="dirResult" style="display:none;"></div>
+        </div>
+
+        <div class="floor-label-badge" id="floorLabelBadge">1st Floor</div>
+        <div class="map-wrapper" id="mapWrapper">
+            <svg id="floorSvg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet">
+                <!-- Drawn dynamically by map.js -->
+            </svg>
+            <!-- Hover Tooltip -->
+            <div class="map-tooltip hidden" id="mapTooltip"></div>
+        </div>
+    </main>
+
+    <!-- RIGHT PANEL: Info / Details -->
+    <aside class="sidebar-right" id="sidebarRight">
+        <button class="panel-close" id="panelClose">✕</button>
+        <div id="panelContent">
+            <!-- Filled dynamically -->
+            <div class="panel-welcome">
+                <div class="welcome-icon">🗺️</div>
+                <h2>Welcome to VIA Campus</h2>
+                <p>Click any room or area on the map to see details, availability, menus, and more.</p>
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-num" id="statAvail">12</div>
+                        <div class="stat-lbl">Rooms Free</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-num" id="statOccupied">8</div>
+                        <div class="stat-lbl">Occupied</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-num">3</div>
+                        <div class="stat-lbl">Events Today</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>
+
+<!-- ============================================================
+     EVENTS MODAL
+============================================================ -->
+<div class="modal-overlay hidden" id="eventsModal">
+    <div class="modal-box">
+        <button class="modal-close" id="eventsModalClose">✕</button>
+        <h2>📅 Upcoming Events</h2>
+        <div class="events-list">
+            <div class="event-card">
+                <div class="event-date">Today, 12:00</div>
+                <div class="event-title">Tech Talk: AI in Healthcare</div>
+                <div class="event-loc">📍 Auditorium A, Floor 1</div>
+                <div class="event-tags"><span class="tag tag-open">Open to all</span></div>
+            </div>
+            <div class="event-card">
+                <div class="event-date">Today, 15:00</div>
+                <div class="event-title">Robotics Club Meeting</div>
+                <div class="event-loc">📍 MakerSpace, Floor 1</div>
+                <div class="event-tags"><span class="tag tag-club">Club</span></div>
+            </div>
+            <div class="event-card">
+                <div class="event-date">Tomorrow, 09:00</div>
+                <div class="event-title">Guest Lecture: Sustainable Engineering</div>
+                <div class="event-loc">📍 Auditorium B, Floor 1</div>
+                <div class="event-tags"><span class="tag tag-open">Open to all</span></div>
+            </div>
+            <div class="event-card">
+                <div class="event-date">Fri, 18:00</div>
+                <div class="event-title">International Food Festival</div>
+                <div class="event-loc">📍 Canteen, Floor 1</div>
+                <div class="event-tags"><span class="tag tag-open">Open to all</span><span class="tag tag-free">Free</span></div>
+            </div>
+            <div class="event-card">
+                <div class="event-date">Sat, 10:00</div>
+                <div class="event-title">Hackathon 2026 — "Build for Good"</div>
+                <div class="event-loc">📍 Multiple floors</div>
+                <div class="event-tags"><span class="tag tag-open">Open to all</span><span class="tag tag-free">Register</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     NOTIFICATION TOAST
+============================================================ -->
+<div class="toast hidden" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="map.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
