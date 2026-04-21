@@ -31,7 +31,6 @@
     const floorSvg        = document.getElementById('floorSvg');
 
     // ─── CLOCK ────────────────────────────────────────────────────────────────
-    // Clock removed since header is removed.
 
     // ─── FLOOR SWITCH ─────────────────────────────────────────────────────────
     function setFloor(n) {
@@ -54,7 +53,7 @@
     floorBtns.forEach(b => b.addEventListener('click', () => setFloor(+b.dataset.floor)));
     setFloor(0);
 
-    // Hubs removed per user request.
+
 
     // ─── PAN + ZOOM (Google Maps style) ──────────────────────────────────────
     let panX = 0, panY = 0;
@@ -153,7 +152,6 @@
 
     // Reset view when switching floor
     const _origSetFloor = setFloor;
-    // (resetView called at end of setFloor already via MapAPI.load)
 
     // ─── PANEL ────────────────────────────────────────────────────────────────
     window.openPanel = function (room, status) {
@@ -412,7 +410,7 @@
         showToast(`🧭 Navigating to ${found.name} on Floor ${foundFloor}`);
     });
 
-    // Dark Mode / Theme toggle removed per user request.
+
 
     // ─── TOAST ────────────────────────────────────────────────────────────────
     let toastTimer;
